@@ -6,6 +6,7 @@ import argparse
 import itertools
 from collections import Counter
 from collections import deque
+import time
 
 import cv2 as cv
 import numpy as np
@@ -97,6 +98,10 @@ def main():
 
     #  ########################################################################
     mode = 0
+    global recognized_text, recording_text, last_recognition_time
+    recognized_text = ""  
+    last_recognition_time = 0 
+    recording_text = False  
 
     while True:
         fps = cvFpsCalc.get()
@@ -167,12 +172,13 @@ def main():
                     handedness,
                     keypoint_classifier_labels[hand_sign_id],
                     point_history_classifier_labels[most_common_fg_id[0][0]],
+                    mode
                 )
         else:
             point_history.append([0, 0])
 
         debug_image = draw_point_history(debug_image, point_history)
-        debug_image = draw_info(debug_image, fps, mode, number)
+        debug_image = draw_info(debug_image, fps, mode, number, key)
 
         # Screen reflection #############################################################
         cv.imshow('Hand Gesture Recognition', debug_image)
@@ -183,7 +189,7 @@ def main():
 
 def select_mode(key, mode):
     number = -1
-    if 97 <= key <= 122:  # a ~ z
+    if 97 <= key <= 122:  # a ~ z | 0 ~ 25
         number = key - 97
     elif key == 48:  # n
         mode = 0
@@ -191,6 +197,10 @@ def select_mode(key, mode):
         mode = 1
     elif key == 50:  # h
         mode = 2
+    elif key == 51:  # '3' (ASCII: 51)
+        mode = 3    
+    elif key == 32:  #SPACE
+        number = 26  
     return number, mode
 
 
@@ -492,9 +502,11 @@ def draw_bounding_rect(use_brect, image, brect):
 
 
 def draw_info_text(image, brect, handedness, hand_sign_text,
-                   finger_gesture_text):
+                   finger_gesture_text, mode):
+    global recognized_text, recording_text, last_recognition_time
     cv.rectangle(image, (brect[0], brect[1]), (brect[2], brect[1] - 22),
                  (0, 0, 0), -1)
+    image_height = image.shape[0]
 
     info_text = handedness.classification[0].label[0:]
     if hand_sign_text != "":
@@ -508,7 +520,22 @@ def draw_info_text(image, brect, handedness, hand_sign_text,
         cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
                    cv.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2,
                    cv.LINE_AA)
+    if mode == 3:
+        current_time = time.time()
+        if recording_text and (current_time - last_recognition_time > 2.0):  # Delay 1s
+            #if hand sign is blank space
+            if hand_sign_text == "SPACE":
+                recognized_text += " "
+                print("Blank Space has recognized")
+            else:
+                recognized_text += hand_sign_text
 
+            last_recognition_time = current_time  # update time
+        # Show text
+        cv.putText(image, "Recognized Text: " + recognized_text, (10, image_height - 20),
+                cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 4, cv.LINE_AA)
+        cv.putText(image, "Recognized Text: " + recognized_text, (10, image_height - 20),
+                cv.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv.LINE_AA)
     return image
 
 
@@ -520,24 +547,39 @@ def draw_point_history(image, point_history):
 
     return image
 
+def draw_info(image, fps, mode, number, key):
 
-def draw_info(image, fps, mode, number):
     cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
                1.0, (0, 0, 0), 4, cv.LINE_AA)
     cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
                1.0, (255, 255, 255), 2, cv.LINE_AA)
 
-    mode_string = ['Logging Key Point', 'Logging Point History']
-    if 1 <= mode <= 2:
+    mode_string = ['Logging Key Point', 'Logging Point History', 'Logging Combine letters']
+    if 1 <= mode <= 3:
         cv.putText(image, "MODE:" + mode_string[mode - 1], (10, 90),
-                   cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,
-                   cv.LINE_AA)
+                   cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
         if number >= 0:
-            cv.putText(image, "LETTER:" + chr(number + 97), (10, 110),
-                       cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,
-                       cv.LINE_AA)
+            letter = chr(number + 97)  # convert to number
+            cv.putText(image, "LETTER:" + letter, (10, 110),
+                       cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
+        if mode == 3:
+            process_keypress(key)
     return image
 
+def process_keypress(key):
+    """
+    handle keypress for recognized text
+    """
+    global recognized_text, recording_text
+
+    if key == ord('s') or key == ord('S'):  
+        recording_text = not recording_text  # change status
+        if not recording_text:
+            recognized_text = ""  # if it off -> delete it
+        print(f"[INFO] Recognized Text Logging: {'ON' if recording_text else 'OFF'}")
+    if key == ord('d') or key == ord('D'):  
+        recognized_text = ""  
+        print(f"[INFO] Recognized Text is Cleared")
 
 if __name__ == '__main__':
     main()
