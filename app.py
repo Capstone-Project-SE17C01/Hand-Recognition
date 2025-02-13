@@ -191,16 +191,21 @@ def select_mode(key, mode):
     number = -1
     if 97 <= key <= 122:  # a ~ z | 0 ~ 25
         number = key - 97
-    elif key == 48:  # n
-        mode = 0
-    elif key == 49:  # k
+    elif key == 32:  # SPACE
+        number = 26
+    # Add numbers 0-9 handling
+    elif 48 <= key <= 57:  # 0 ~ 9
+        number = 27 + (key - 48)  # map 0->27, 1->28, ..., 9->36
+        
+    # Mode selection using 2 digits
+    elif key == ord('N'):
+        mode = 0  
+    elif key == ord('K'):
         mode = 1
-    elif key == 50:  # h
+    elif key == ord('H'):
         mode = 2
-    elif key == 51:  # '3' (ASCII: 51)
-        mode = 3    
-    elif key == 32:  #SPACE
-        number = 26  
+    elif key == ord('R'):
+        mode = 3
     return number, mode
 
 
@@ -548,7 +553,6 @@ def draw_point_history(image, point_history):
     return image
 
 def draw_info(image, fps, mode, number, key):
-
     cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
                1.0, (0, 0, 0), 4, cv.LINE_AA)
     cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
@@ -558,9 +562,16 @@ def draw_info(image, fps, mode, number, key):
     if 1 <= mode <= 3:
         cv.putText(image, "MODE:" + mode_string[mode - 1], (10, 90),
                    cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
-        if number >= 0:
-            letter = chr(number + 97)  # convert to number
-            cv.putText(image, "LETTER:" + letter, (10, 110),
+        if 0 <= number <= 25:  # Letters
+            letter = chr(number + 97)
+            cv.putText(image, "INPUT:" + letter, (10, 110),
+                       cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
+        elif number == 26:  # Space
+            cv.putText(image, "INPUT: SPACE", (10, 110),
+                       cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
+        elif 27 <= number <= 36:  # Numbers
+            num = str(number - 27)  # Convert back to 0-9
+            cv.putText(image, "INPUT:" + num, (10, 110),
                        cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
         if mode == 3:
             process_keypress(key)
