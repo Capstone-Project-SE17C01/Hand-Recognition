@@ -146,7 +146,7 @@ def main():
 
                 # Hand sign classification
                 hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
-                if hand_sign_id == 2:  # Point gesture
+                if hand_sign_id == 27:  # Point gesture
                     point_history.append(landmark_list[8])
                 else:
                     point_history.append([0, 0])
@@ -195,7 +195,7 @@ def select_mode(key, mode):
         number = 26
     # Add numbers 0-9 handling
     elif 48 <= key <= 57:  # 0 ~ 9
-        number = 27 + (key - 48)  # map 0->27, 1->28, ..., 9->36
+        number = 28 + (key - 48)  # map 0->27, 1->28, ..., 9->36
         
     # Mode selection using 2 digits
     elif key == ord('N'):
