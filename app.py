@@ -569,8 +569,8 @@ def draw_info(image, fps, mode, number, key):
         elif number == 26:  # Space
             cv.putText(image, "INPUT: SPACE", (10, 110),
                        cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
-        elif 27 <= number <= 36:  # Numbers
-            num = str(number - 27)  # Convert back to 0-9
+        elif 28 <= number <= 37:  # Numbers
+            num = str(number - 28)  # Convert back to 0-9
             cv.putText(image, "INPUT:" + num, (10, 110),
                        cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
         if mode == 3:
