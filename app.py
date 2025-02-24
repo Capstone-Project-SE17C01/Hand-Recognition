@@ -146,8 +146,8 @@ def main():
 
                 # Hand sign classification
                 hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
-                if hand_sign_id == 27:  # Point gesture
-                    point_history.append(landmark_list[8])
+                if hand_sign_id == 8:  # Point gesture
+                    point_history.append(landmark_list[20])
                 else:
                     point_history.append([0, 0])
 
@@ -194,8 +194,10 @@ def select_mode(key, mode):
     elif key == 32:  # SPACE
         number = 26
     # Add numbers 0-9 handling
-    elif 48 <= key <= 57:  # 0 ~ 9
-        number = 28 + (key - 48)  # map 0->27, 1->28, ..., 9->36
+    elif 48 <= key <= 57 and mode == 1:  # 0 ~ 9
+        number = 27 + (key - 48)  # map 0->27, 1->28, ..., 9->36
+    elif 48 <= key <= 57 and mode == 2:  # 0 ~ 9
+        number = key - 48
         
     # Mode selection using 2 digits
     elif key == ord('N'):
@@ -562,15 +564,15 @@ def draw_info(image, fps, mode, number, key):
     if 1 <= mode <= 3:
         cv.putText(image, "MODE:" + mode_string[mode - 1], (10, 90),
                    cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
-        if 0 <= number <= 25:  # Letters
-            letter = chr(number + 97)
+        if 0 <= number <= 25 and mode == 1:  # Letters
+            letter = chr(number + 65)
             cv.putText(image, "INPUT:" + letter, (10, 110),
                        cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
         elif number == 26:  # Space
             cv.putText(image, "INPUT: SPACE", (10, 110),
                        cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
-        elif 28 <= number <= 37:  # Numbers
-            num = str(number - 28)  # Convert back to 0-9
+        elif 27 <= number <= 36:  # Numbers
+            num = str(number - 27)  # Convert back to 0-9
             cv.putText(image, "INPUT:" + num, (10, 110),
                        cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
         if mode == 3:
