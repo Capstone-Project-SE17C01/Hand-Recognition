@@ -196,10 +196,8 @@ def select_mode(key, mode):
     elif key == 32:  # SPACE
         number = 26
     # Add numbers 0-9 handling
-    elif 48 <= key <= 57 and mode == 1:  # 0 ~ 9
+    elif 48 <= key <= 57:  # 0 ~ 9
         number = 27 + (key - 48)  # map 0->27, 1->28, ..., 9->36
-    elif 48 <= key <= 57 and mode == 2:  # 0 ~ 9
-        number = key - 48
         
     # Mode selection using 2 digits
     elif key == ord('N'):
@@ -566,8 +564,8 @@ def draw_info(image, fps, mode, number, key):
     if 1 <= mode <= 3:
         cv.putText(image, "MODE:" + mode_string[mode - 1], (10, 90),
                    cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
-        if 0 <= number <= 25 and mode == 1:  # Letters
-            letter = chr(number + 65)
+        if 0 <= number <= 25:  # Letters
+            letter = chr(number + 97)
             cv.putText(image, "INPUT:" + letter, (10, 110),
                        cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
         elif number == 26:  # Space
