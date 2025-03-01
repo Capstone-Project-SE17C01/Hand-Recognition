@@ -1,7 +1,6 @@
-# hand-gesture-recognition-using-mediapipe
+# Hand-gesture-recognition-using-mediapipe
 Estimate hand pose using MediaPipe (Python version).<br> This is a sample 
 program that recognizes hand signs and finger gestures with a simple MLP using the detected key points.
-<br> ❗ _️**This is English Translated version of the [original repo](https://github.com/Kazuhito00/hand-gesture-recognition-using-mediapipe). All Content is translated to english along with comments and notebooks**_ ❗
 <br> 
 ![mqlrf-s6x16](https://user-images.githubusercontent.com/37477845/102222442-c452cd00-3f26-11eb-93ec-c387c98231be.gif)
 
@@ -44,14 +43,14 @@ Tracking confidence threshold (Default：0.5)
 ├─model
 │  ├─keypoint_classifier
 │  │  │  keypoint.csv
-│  │  │  keypoint_classifier.hdf5
+│  │  │  keypoint_classifier.keras
 │  │  │  keypoint_classifier.py
 │  │  │  keypoint_classifier.tflite
 │  │  └─ keypoint_classifier_label.csv
 │  │          
 │  └─point_history_classifier
 │      │  point_history.csv
-│      │  point_history_classifier.hdf5
+│      │  point_history_classifier.keras
 │      │  point_history_classifier.py
 │      │  point_history_classifier.tflite
 │      └─ point_history_classifier_label.csv
@@ -139,12 +138,3 @@ The model using "LSTM" is as follows. <br>Please change "use_lstm = False" to "T
 
 # Reference
 * [MediaPipe](https://mediapipe.dev/)
-
-# Author
-Kazuhito Takahashi(https://twitter.com/KzhtTkhs)
-
-# Translation and other improvements
-Nikita Kiselov(https://github.com/kinivi)
- 
-# License 
-hand-gesture-recognition-using-mediapipe is under [Apache v2 license](LICENSE).
