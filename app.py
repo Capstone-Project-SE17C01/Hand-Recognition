@@ -38,6 +38,119 @@ def get_args():
 
     return args
 
+def normalize_hand_orientation(landmark_list):
+   
+    base = np.array(landmark_list[0])
+    reference = np.array(landmark_list[9])
+    # Tính góc của vector từ cổ tay đến landmark[9]
+    vector = reference - base
+    angle = np.arctan2(vector[1], vector[0])
+    # Ma trận xoay với góc -angle để căn chỉnh về ngang
+    cos_val = np.cos(-angle)
+    sin_val = np.sin(-angle)
+    rotation_matrix = np.array([[cos_val, -sin_val],
+                                [sin_val,  cos_val]])
+    normalized_landmarks = []
+    for point in landmark_list:
+        # Dịch chuyển về gốc (cổ tay) rồi xoay
+        normalized_point = np.dot(rotation_matrix, np.array(point) - base)
+        normalized_landmarks.append(normalized_point.tolist())
+    return normalized_landmarks
+
+
+def normalize_with_pca_3d(landmark_list):
+    """
+    Chuẩn hóa các điểm landmark 3D bằng PCA để đưa hướng chính về hướng cố định (ví dụ: trục x).
+    Các landmark được giả định có định dạng [x, y, z].
+    """
+    import numpy as np
+    # Chuyển danh sách landmark thành mảng numpy (shape: (N, 3))
+    points = np.array(landmark_list)  # ví dụ: [[x0, y0, z0], [x1, y1, z1], ...]
+    
+    # Tính trung bình và center các điểm
+    mean = np.mean(points, axis=0)
+    centered = points - mean
+    
+    # Tính ma trận hiệp phương sai và eigen decomposition
+    cov = np.cov(centered, rowvar=False)  # ma trận 3x3
+    eigenvalues, eigenvectors = np.linalg.eig(cov)
+    
+    # Sắp xếp eigenvector theo eigenvalue giảm dần
+    sort_idx = np.argsort(eigenvalues)[::-1]
+    principal_component = eigenvectors[:, sort_idx[0]]  # vector chính
+    
+    # Mục tiêu: xoay sao cho vector chính được căn chỉnh với trục x, tức là [1, 0, 0]
+    target = np.array([1, 0, 0])
+    # Tính vector trục quay (cross product) và góc quay
+    axis = np.cross(principal_component, target)
+    axis_norm = np.linalg.norm(axis)
+    if axis_norm < 1e-6:
+        # Nếu gần như đã căn chỉnh, không cần xoay
+        R = np.eye(3)
+    else:
+        axis = axis / axis_norm
+        angle = np.arccos(np.clip(np.dot(principal_component, target), -1.0, 1.0))
+        # Tính ma trận xoay theo công thức Rodrigues
+        K = np.array([[0, -axis[2], axis[1]],
+                      [axis[2], 0, -axis[0]],
+                      [-axis[1], axis[0], 0]])
+        R = np.eye(3) + np.sin(angle) * K + (1 - np.cos(angle)) * (K @ K)
+    
+    # Áp dụng xoay lên các điểm đã center
+    normalized_points = centered.dot(R.T)
+    
+    return normalized_points.tolist()
+
+
+def check_finger_extended(normalized_landmarks, base_index, tip_index, palm_length=None, threshold=0.65):
+    """
+        check finger extended or not based on distance between base and tip
+        parameters:
+            normalized_landmarks: a list of landmarks normalized to hand orientation
+            base_index: index of base point of the finger
+            tip_index: index of tip point of the finger
+            palm_length: (optional) length of palm, if not provided, it will be calculated from landmark[0] to landmark[9]
+            threshold: a threshold value relative to palm_length to determine if the finger is extended.
+                       The default value is 0.65, you can adjust it based on the actual situation.
+        
+        returns:
+            True if the finger is extended, False if not.
+    """
+    if palm_length is None:
+    # calculate palm length from landmark[0] to landmark[9]
+        palm_length = np.linalg.norm(np.array(normalized_landmarks[9]) - np.array(normalized_landmarks[0]))
+    # calculate distance between base and tip
+    distance = np.linalg.norm(np.array(normalized_landmarks[tip_index]) - np.array(normalized_landmarks[base_index]))
+    return distance > threshold * palm_length
+def check_exclusive_finger(normalized_landmarks, target_base, target_tip, threshold=0.65, other_fingers=None):
+    """
+        Check if a finger is extended (based on target_base and target_tip)
+        and all other fingers are separated.
+        
+        Parameters:
+            normalized_landmarks: a list of landmarks normalized to hand orientation.
+            target_base: index of the base point of the target finger.
+            target_tip: index of the tip point of the target finger.
+            threshold: a threshold value relative to palm_length to determine if the finger is extended.
+                       The default value is 0.65, you can adjust it based on the actual situation.
+            other_fingers: a list of tuples (base, tip) of other fingers to be checked for separation.
+        
+        Returns:
+            True if the target finger is extended and all other fingers are separated, False otherwise.
+    """
+    # if target finger is not extended, return False
+    if not check_finger_extended(normalized_landmarks, base_index=target_base, tip_index=target_tip, threshold=threshold):
+        return False
+    
+    # if other_fingers is not provided, set it to an empty list
+    if other_fingers is None:
+        other_fingers = []
+    
+    # check if all other fingers are separated
+    for base, tip in other_fingers:
+        if check_finger_extended(normalized_landmarks, base_index=base, tip_index=tip, threshold=threshold):
+            return False
+    return True
 
 def main():
     # Argument parsing #################################################################
@@ -98,10 +211,13 @@ def main():
 
     #  ########################################################################
     mode = 0
-    global recognized_text, recording_text, last_recognition_time
+    global recognized_text, recording_text,current_time, last_recognition_time, input_message_3, history_buffer
     recognized_text = ""  
     last_recognition_time = 0 
+    history_buffer = [] 
+    current_time = 0
     recording_text = False  
+    input_message_3 = ""
 
     while True:
         fps = cvFpsCalc.get()
@@ -146,10 +262,19 @@ def main():
 
                 # Hand sign classification
                 hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
-                if hand_sign_id != 25:  # J Point gesture
-                    point_history.append(landmark_list[20])
-                elif hand_sign_id == 25: # Z Point gesture
+
+                # Normalized coordinates
+                normalized_landmark_list = normalize_hand_orientation(landmark_list)
+               
+                # Hand sign classification
+                if check_exclusive_finger(normalized_landmark_list, target_base=5, target_tip=8, threshold=0.65,
+                          other_fingers=[(2, 4), (9, 12), (13, 16), (17, 20)]):
+                    # if exclusive index finger is detected
                     point_history.append(landmark_list[8])
+                elif check_exclusive_finger(normalized_landmark_list, target_base=17, target_tip=20, threshold=0.65,
+                                            other_fingers=[(2, 4), (5, 8), (9, 12), (13, 16)]):
+                    # if exclusive little finger is detected
+                    point_history.append(landmark_list[20])
                 else:
                     point_history.append([0, 0])
 
@@ -512,7 +637,7 @@ def draw_bounding_rect(use_brect, image, brect):
 
 def draw_info_text(image, brect, handedness, hand_sign_text,
                    finger_gesture_text, mode):
-    global recognized_text, recording_text, last_recognition_time
+    global recognized_text, recording_text, last_recognition_time, current_time, input_message_3, history_buffer
     cv.rectangle(image, (brect[0], brect[1]), (brect[2], brect[1] - 22),
                  (0, 0, 0), -1)
     image_height = image.shape[0]
@@ -530,16 +655,35 @@ def draw_info_text(image, brect, handedness, hand_sign_text,
                    cv.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2,
                    cv.LINE_AA)
     if mode == 3:
-        current_time = time.time()
-        if recording_text and (current_time - last_recognition_time > 2.0):  # Delay 1s
-            #if hand sign is blank space
-            if hand_sign_text == "SPACE":
-                recognized_text += " "
-                print("Blank Space has recognized")
-            else:
-                recognized_text += hand_sign_text
+        if recording_text : 
+            last_recognition_time = time.time() if current_time == 0 else last_recognition_time
+            current_time = time.time()
+             # Delay 2 seconds
+            if(current_time - last_recognition_time > 2.0):
+                #if hand sign is blank space
+                if hand_sign_text == "SPACE":
+                    recognized_text += " "
+                    input_message_3 = "INPUT: Space"
+                    print("Blank Space has recognized")
+                else:
+                    if history_buffer:
+                        recognized_text += history_buffer[0]
+                    else:
+                        recognized_text += hand_sign_text
+                    input_message_3 = "INPUT: " + hand_sign_text
 
-            last_recognition_time = current_time  # update time
+                last_recognition_time = current_time  # update time
+            else:
+                if finger_gesture_text != "":
+                    history_buffer.append(finger_gesture_text)
+                    input_message_3 = "INPUT: Collecting history..."
+                    from collections import Counter
+                    cnt = Counter(history_buffer)
+                    history_buffer = []
+                    if cnt.most_common(1)[0][0] == hand_sign_text:
+                        history_buffer.append(cnt.most_common(1)[0][0])
+                    
+
         # Show text
         cv.putText(image, "Recognized Text: " + recognized_text, (10, image_height - 20),
                 cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 4, cv.LINE_AA)
@@ -579,22 +723,30 @@ def draw_info(image, fps, mode, number, key):
                        cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
         if mode == 3:
             process_keypress(key)
+            global input_message_3
+            if input_message_3:
+                cv.putText(image, input_message_3, (10, 150),
+                        cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
     return image
 
 def process_keypress(key):
     """
     handle keypress for recognized text
     """
-    global recognized_text, recording_text
+    global recognized_text, recording_text, input_message_3
 
     if key == ord('s') or key == ord('S'):  
+
         recording_text = not recording_text  # change status
+
         if not recording_text:
             recognized_text = ""  # if it off -> delete it
         print(f"[INFO] Recognized Text Logging: {'ON' if recording_text else 'OFF'}")
+        input_message_3 = f"[INFO] Recognized Text: {'ON' if recording_text else 'OFF'}"
     if key == ord('d') or key == ord('D'):  
         recognized_text = ""  
         print(f"[INFO] Recognized Text is Cleared")
+        input_message_3 = "INPUT: Text Cleared" 
 
 if __name__ == '__main__':
     main()
